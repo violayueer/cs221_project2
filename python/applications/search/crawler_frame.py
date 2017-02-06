@@ -3,6 +3,7 @@ from datamodel.search.datamodel import ProducedLink, OneUnProcessedGroup, robot_
 from spacetime_local.IApplication import IApplication
 from spacetime_local.declarations import Producer, GetterSetter, Getter
 from lxml import html,etree
+import requests
 import re, os
 from time import time
 
@@ -28,10 +29,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = ""
+        self.app_id = "<20809476>"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = None
+        self.UserAgentString = "Grad<20809476>"
 		
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -77,6 +78,31 @@ STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
 '''
 def extract_next_links(rawDatas):
     outputLinks = list()
+
+    for rawData in rawDatas:
+        rootUrl = rawData[0]
+
+        #print "rootUrl::::::" + rootUrl
+
+        page = requests.get(rootUrl)
+        tree = html.fromstring(page.content)
+
+        links = tree.xpath('//a/@href')
+
+        for link in links:
+            pattern = re.compile('/.*')
+            match = pattern.match(link)
+            if match:
+                link = "http://www.ics.uci.edu" + link
+                #print "modified link::---" + link
+
+            if is_valid(link):
+                #print link
+                outputLinks.append(link)
+
+        #print "outputlinks"
+        #print outputLinks
+
     '''
     rawDatas is a list of tuples -> [(url1, raw_content1), (url2, raw_content2), ....]
     the return of this function should be a list of urls in their absolute form
@@ -96,6 +122,8 @@ def is_valid(url):
     This is a great place to filter out crawler traps.
     '''
     parsed = urlparse(url)
+    #print "parsed" + parsed
+
     if parsed.scheme not in set(["http", "https"]):
         return False
     try:
@@ -104,7 +132,8 @@ def is_valid(url):
             + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv"\
-            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()) \
+            and not re.match(".*calendar\.ics\.uci\.edu.*", parsed.netloc.lower())  #trap
 
     except TypeError:
         print ("TypeError for ", parsed)
