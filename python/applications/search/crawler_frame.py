@@ -20,7 +20,7 @@ LOG_HEADER = "[CRAWLER]"
 url_count = 0 if not os.path.exists("successful_urls.txt") else (len(open("successful_urls.txt").readlines()) - 1)
 if url_count < 0:
     url_count = 0
-MAX_LINKS_TO_DOWNLOAD = 20
+MAX_LINKS_TO_DOWNLOAD = 30
 
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
@@ -49,7 +49,9 @@ class CrawlerFrame(IApplication):
     def update(self):
         for g in self.frame.get(OneUnProcessedGroup):
             print "Got a Group"
+
             outputLinks = process_url_group(g, self.UserAgentString)
+            #print outputLinks
             for l in outputLinks:
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
                     lObj = ProducedLink(l, self.UserAgentString)
@@ -82,7 +84,7 @@ def extract_next_links(rawDatas):
     for rawData in rawDatas:
         rootUrl = rawData[0]
 
-        #print "rootUrl::::::" + rootUrl
+        #print "rootUrl-------------------------------" + rootUrl
 
         page = requests.get(rootUrl)
         tree = html.fromstring(page.content)
@@ -93,12 +95,10 @@ def extract_next_links(rawDatas):
             pattern = re.compile('/.*')
             match = pattern.match(link)
             if match:
-                link = "http://www.ics.uci.edu" + link
-                #print "modified link::---" + link
+                link = rootUrl + link
+                #print "modified link::-------------------------------------------" + link
 
-            if is_valid(link):
-                #print link
-                outputLinks.append(link)
+            outputLinks.append(link)
 
         #print "outputlinks"
         #print outputLinks
@@ -133,7 +133,10 @@ def is_valid(url):
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv"\
             + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()) \
-            and not re.match(".*calendar\.ics\.uci\.edu.*", parsed.netloc.lower())  #trap
+            and not re.match(".*calendar\.ics\.uci\.edu.*"
+                             + "|.*ngs\.ics\.uci\.edu.*"
+                             #+ "|.*ganglia\.ics\.uci\.edu.*"
+                             + "|.*graphmod\.ics\.uci\.edu.*", parsed.netloc.lower())  #trap
 
     except TypeError:
         print ("TypeError for ", parsed)
