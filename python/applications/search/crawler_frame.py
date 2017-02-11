@@ -3,9 +3,11 @@ from datamodel.search.datamodel import ProducedLink, OneUnProcessedGroup, robot_
 from spacetime_local.IApplication import IApplication
 from spacetime_local.declarations import Producer, GetterSetter, Getter
 from lxml import html,etree
-import requests
 import re, os
 from time import time
+import requests
+import urllib2
+from urlparse import urlparse
 
 try:
     # For python 2
@@ -29,10 +31,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "<1111>"
+        self.app_id = "11112"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "IR W17 Grad <11111>"
+        self.UserAgentString = "1111"
 		
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -66,12 +68,16 @@ class CrawlerFrame(IApplication):
 
 def save_count(urls):
     global url_count
-    url_count.update(set(urls))
-    with open("successful_urls.txt", "a") as surls:
-        surls.write(("\n".join(urls) + "\n").encode("utf-8"))
+    urls = set(urls).difference(url_count)
+    url_count.update(urls)
+    if len(urls):
+        with open("successful_urls.txt", "a") as surls:
+            surls.write(("\n".join(urls) + "\n").encode("utf-8"))
 
 def process_url_group(group, useragentstr):
+
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
+    print rawDatas
     save_count(successfull_urls)
     return extract_next_links(rawDatas), rawDatas
     
@@ -91,32 +97,31 @@ def extract_next_links(rawDatas):
 
     Suggested library: lxml
     '''
-
     for rawData in rawDatas:
         if rawData.error_message is None:
             continue
-
+        
         #rootUrl
         if rawData.is_redirected:
             rootUrl = rawData.final_url
         else:
             rootUrl = rawData.url
 
+        #print rootUrl    
+    
         page = requests.get(rootUrl)
         tree = html.fromstring(page.content)
         links = tree.xpath('//a/@href')
+        
+        for relativeUrl in links:
+            relativeUrl = relativeUrl.encode('utf-8')
+            url = urlparse.urljoin(rootUrl, relativeUrl)
+            url = urllib2.urlopen(url).geturl()
+            
+            outputLinks.append(url)
 
-        for link in links:
-            pattern = re.compile('/.*')
-            match = pattern.match(link)
-            if match:
-                link = rootUrl + link
-                #print "modified link::-------------------------------------------" + link
-
-            outputLinks.append(link)
-
-        #print "outputlinks"
-        #print outputLinks
+#print "outputlinks"
+#print outputLinks
     return outputLinks
 
 def is_valid(url):
@@ -127,21 +132,26 @@ def is_valid(url):
     This is a great place to filter out crawler traps.
     '''
     parsed = urlparse(url)
+    #print parsed
 
+    #print url
     if parsed.scheme not in set(["http", "https"]):
         return False
     try:
+
         return ".ics.uci.edu" in parsed.hostname \
             and not re.match(".*\.(css|js|bmp|gif|jpe?g|ico" + "|png|tiff?|mid|mp2|mp3|mp4"\
             + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv"\
-            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()) \
+            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$"\
+            + "|.*about/bren/.*bren_vision\.php.*", parsed.path.lower()) \
             and not re.match(".*calendar\.ics\.uci\.edu.*"
                              + "|.*ngs\.ics\.uci\.edu.*"
                              + "|.*ganglia\.ics\.uci\.edu.*"
                              + "|.*graphmod\.ics\.uci\.edu.*", parsed.netloc.lower()) \
             and not re.match(".*p=2&c=igb-misc&h=arcus-3.*", parsed.query.lower())
+
 
     except TypeError:
         print ("TypeError for ", parsed)
