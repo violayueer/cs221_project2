@@ -31,10 +31,10 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "11112"
+        self.app_id = "37082069_20809476"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "1111"
+        self.UserAgentString = "IR W17 Grad 37082069,20809476"
 		
         self.frame = frame
         assert(self.UserAgentString != None)
@@ -100,28 +100,29 @@ def extract_next_links(rawDatas):
     for rawData in rawDatas:
         if rawData.error_message is None:
             continue
-        
-        #rootUrl
+
         if rawData.is_redirected:
             rootUrl = rawData.final_url
         else:
             rootUrl = rawData.url
 
-        #print rootUrl    
-    
-        page = requests.get(rootUrl)
-        tree = html.fromstring(page.content)
-        links = tree.xpath('//a/@href')
-        
-        for relativeUrl in links:
-            relativeUrl = relativeUrl.encode('utf-8')
-            url = urljoin(rootUrl, relativeUrl)
-            #url = urllib2.urlopen(url).geturl()
-            
-            outputLinks.append(url)
+        # page = requests.get(rootUrl)
+        page = rawData.content
 
-#print "outputlinks"
-#print outputLinks
+        # Unicode
+        # doc = page.decode('gb2312', 'ignore')
+
+        htmlParse = html.document_fromstring(page)
+        htmlParse.make_links_absolute(
+            rootUrl)  # This makes all links in the document absolute, rootUrl is the "base_href".
+
+        # Introduction about "iterlinks()"
+        # This finds any link in an action, archive, background, cite, classid, codebase, data, href, longdesc, profile, src, usemap, dynsrc, or lowsrc attribute.
+        # It also searches style attributes for url(link), and <style> tags for @import and url().
+        for element, attribute, link, pos in htmlParse.iterlinks():
+            if link != rootUrl and is_valid(link):
+                outputLinks.append(link)
+
     return outputLinks
 
 def is_valid(url):
@@ -150,7 +151,12 @@ def is_valid(url):
                              + "|.*ngs\.ics\.uci\.edu.*"
                              + "|.*ganglia\.ics\.uci\.edu.*"
                              + "|.*graphmod\.ics\.uci\.edu.*", parsed.netloc.lower()) \
-            and not re.match(".*p=2&c=igb-misc&h=arcus-3.*", parsed.query.lower())
+            and not re.match(".*p=2&c=igb-misc&h=arcus-3.*", parsed.query.lower()) \
+            and not "/" in parsed.query \
+            and not parsed.path.count(".php") > 1 \
+            and not parsed.path.count(".html") > 1 \
+            and not ".php/" in parsed.path \
+            and not ".html/" in parsed.path
 
 
     except TypeError:
