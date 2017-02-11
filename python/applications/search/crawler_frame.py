@@ -7,7 +7,7 @@ import re, os
 from time import time
 import requests
 import urllib2
-from urlparse import urlparse
+from urlparse import urlparse, urljoin
 
 try:
     # For python 2
@@ -77,7 +77,7 @@ def save_count(urls):
 def process_url_group(group, useragentstr):
 
     rawDatas, successfull_urls = group.download(useragentstr, is_valid)
-    print rawDatas
+    #print rawDatas
     save_count(successfull_urls)
     return extract_next_links(rawDatas), rawDatas
     
@@ -115,8 +115,8 @@ def extract_next_links(rawDatas):
         
         for relativeUrl in links:
             relativeUrl = relativeUrl.encode('utf-8')
-            url = urlparse.urljoin(rootUrl, relativeUrl)
-            url = urllib2.urlopen(url).geturl()
+            url = urljoin(rootUrl, relativeUrl)
+            #url = urllib2.urlopen(url).geturl()
             
             outputLinks.append(url)
 
