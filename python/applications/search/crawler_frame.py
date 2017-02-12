@@ -76,11 +76,17 @@ class CrawlerFrame(IApplication):
 
             #write out the analytics result to disk
             outputFile = open('Analytics.txt', 'w')
-            outputFile.write('Received invalid links from frontier:' + analytics.invalidUrlCount + '\n')
-            outputFile.write('Pages with the most out links are:' + analytics.maxOutPutUrlList + ', links count is:' + analytics.maxOutPutUrlListCount)
+            outputFile.write('Received invalid links from frontier:' + str(analytics.invalidUrlCount) + '\n')
+
+            outputFile.write('Pages with the most out links are:')
+            for url in analytics.maxOutPutUrlList:
+                outputFile.write(url + ',')
+
+            outputFile.write(', links count is:' + str(analytics.maxOutPutUrlCount) + '\n')
 
             for key in analytics.subDomainDic:
-                outputFile.write('Received subdomains:' + key + 'number of urls it has:' + analytics.subDomainDic.get(key) + '\n')
+                outputFile.write('Received subdomains:' + key)
+                outputFile.write(', number of urls it has:' + str(analytics.subDomainDic.get(key)) + '\n')
 
             outputFile.close()
 
@@ -129,37 +135,50 @@ def extract_next_links(rawDatas):
         else:
             rootUrl = rawData.url
 
+        # print"------------------------------------------------"
+        # print rawData.headers
+        # print rawData.headers == {}
+        # print rawData.error_message
+        # print rawData.error_message != ''
+        # print"-------------------------------------------------"
+
         #check if the url is valid or has any error message, if invalid, increase invalidUrlCount and continue
-        if rawData.error_message is None or rawData.headers != 200 or not is_valid(rootUrl) or rawData.bad_url:
-            rawData.bad_url = True
+        if rawData.headers == {} or rawData.error_message != '' or rawData.bad_url:
             analytics.invalidUrlCount += 1
             continue
 
         # page = requests.get(rootUrl)
+        tempCount = 0
         page = rawData.content
 
         # Unicode
         # doc = page.decode('gb2312', 'ignore')
 
         htmlParse = html.document_fromstring(page)
-        htmlParse.make_links_absolute(
-            rootUrl)  # This makes all links in the document absolute, rootUrl is the "base_href".
+        htmlParse.make_links_absolute(rootUrl)  # This makes all links in the document absolute, rootUrl is the "base_href".
 
         # Introduction about "iterlinks()"
         # This finds any link in an action, archive, background, cite, classid, codebase, data, href, longdesc, profile, src, usemap, dynsrc, or lowsrc attribute.
         # It also searches style attributes for url(link), and <style> tags for @import and url().
         for element, attribute, link, pos in htmlParse.iterlinks():
-
             if link != rootUrl and is_valid(link):
 
-                if (analytics.maxOutPutUrlCount < len(outputLinks)):
-                    analytics.maxOutPutUrlCount = outputLinks
-                    analytics.maxOutPutUrlList.append(link)
-
-                subDomain = urlparse(link).hostname.split('.')[0]
+                hostname = urlparse(link).hostname
+                subDomain = hostname[4:len(hostname)]
                 analytics.subDomainDic[subDomain] = analytics.subDomainDic.get(subDomain, 0) + 1
 
                 outputLinks.append(link)
+                tempCount += 1
+
+            else:
+                if is_valid(link):
+                    rawData.bad_url = True
+                analytics.invalidUrlCount += 1
+
+
+        if (analytics.maxOutPutUrlCount < tempCount):
+            analytics.maxOutPutUrlCount = tempCount
+            analytics.maxOutPutUrlList.append(link)
 
     return outputLinks
 
@@ -179,7 +198,7 @@ def is_valid(url):
 
     # url = content.get(url)
     parsed = urlparse(url)
-    print url
+    #print url
 
     if parsed.scheme not in set(["http", "https"]):
         return False
