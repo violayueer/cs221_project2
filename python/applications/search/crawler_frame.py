@@ -24,6 +24,16 @@ url_count = (set()
     set([line.strip() for line in open("successful_urls.txt").readlines() if line.strip() != ""]))
 MAX_LINKS_TO_DOWNLOAD = 3000
 
+class Analytics:
+    urlCount = 0
+    maxOutPutUrlCount = 0
+    maxOutPutUrlList = list()
+    isDone = False
+    invalidUrlCount = 0
+    subDomainDic = {}
+
+analytics = Analytics()
+
 @Producer(ProducedLink)
 @GetterSetter(OneUnProcessedGroup)
 class CrawlerFrame(IApplication):
@@ -31,12 +41,13 @@ class CrawlerFrame(IApplication):
     def __init__(self, frame):
         self.starttime = time()
         # Set app_id <student_id1>_<student_id2>...
-        self.app_id = "37082069_20809476"
+        self.app_id = "37082069_20809476_60407382"
         # Set user agent string to IR W17 UnderGrad <student_id1>, <student_id2> ...
         # If Graduate studetn, change the UnderGrad part to Grad.
-        self.UserAgentString = "IR W17 Grad 37082069,20809476"
+        self.UserAgentString = "IR W17 Grad 37082069,20809476,60407382"
 		
         self.frame = frame
+
         assert(self.UserAgentString != None)
         assert(self.app_id != "")
         if len(url_count) >= MAX_LINKS_TO_DOWNLOAD:
@@ -55,12 +66,23 @@ class CrawlerFrame(IApplication):
             for urlResp in urlResps:
                 if urlResp.bad_url and self.UserAgentString not in set(urlResp.dataframe_obj.bad_url):
                     urlResp.dataframe_obj.bad_url += [self.UserAgentString]
+
             for l in outputLinks:
                 if is_valid(l) and robot_manager.Allowed(l, self.UserAgentString):
                     lObj = ProducedLink(l, self.UserAgentString)
                     self.frame.add(lObj)
         if len(url_count) >= MAX_LINKS_TO_DOWNLOAD:
             self.done = True
+
+            #write out the analytics result to disk
+            outputFile = open('Analytics.txt', 'w')
+            outputFile.write('Received invalid links from frontier:' + analytics.invalidUrlCount + '\n')
+            outputFile.write('Pages with the most out links are:' + analytics.maxOutPutUrlList + ', links count is:' + analytics.maxOutPutUrlListCount)
+
+            for key in analytics.subDomainDic:
+                outputFile.write('Received subdomains:' + key + 'number of urls it has:' + analytics.subDomainDic.get(key) + '\n')
+
+            outputFile.close()
 
     def shutdown(self):
         print "downloaded ", len(url_count), " in ", time() - self.starttime, " seconds."
@@ -85,6 +107,7 @@ def process_url_group(group, useragentstr):
 '''
 STUB FUNCTIONS TO BE FILLED OUT BY THE STUDENT.
 '''
+
 def extract_next_links(rawDatas):
     outputLinks = list()
     '''
@@ -97,14 +120,20 @@ def extract_next_links(rawDatas):
 
     Suggested library: lxml
     '''
-    for rawData in rawDatas:
-        if rawData.error_message is None:
-            continue
+    if analytics.isDone:
+        return outputLinks
 
+    for rawData in rawDatas:
         if rawData.is_redirected:
             rootUrl = rawData.final_url
         else:
             rootUrl = rawData.url
+
+        #check if the url is valid or has any error message, if invalid, increase invalidUrlCount and continue
+        if rawData.error_message is None or rawData.headers != 200 or not is_valid(rootUrl) or rawData.bad_url:
+            rawData.bad_url = True
+            analytics.invalidUrlCount += 1
+            continue
 
         # page = requests.get(rootUrl)
         page = rawData.content
@@ -120,7 +149,16 @@ def extract_next_links(rawDatas):
         # This finds any link in an action, archive, background, cite, classid, codebase, data, href, longdesc, profile, src, usemap, dynsrc, or lowsrc attribute.
         # It also searches style attributes for url(link), and <style> tags for @import and url().
         for element, attribute, link, pos in htmlParse.iterlinks():
+
             if link != rootUrl and is_valid(link):
+
+                if (analytics.maxOutPutUrlCount < len(outputLinks)):
+                    analytics.maxOutPutUrlCount = outputLinks
+                    analytics.maxOutPutUrlList.append(link)
+
+                subDomain = urlparse(link).hostname.split('.')[0]
+                analytics.subDomainDic[subDomain] = analytics.subDomainDic.get(subDomain, 0) + 1
+
                 outputLinks.append(link)
 
     return outputLinks
@@ -132,10 +170,17 @@ def is_valid(url):
 
     This is a great place to filter out crawler traps.
     '''
-    parsed = urlparse(url)
-    #print parsed
 
-    #print url
+    #filter timeout urls
+    # try:
+    #     content = urllib2.urlopen(url, timeout=15)
+    # except:
+    #     return False
+
+    # url = content.get(url)
+    parsed = urlparse(url)
+    print url
+
     if parsed.scheme not in set(["http", "https"]):
         return False
     try:
@@ -145,13 +190,12 @@ def is_valid(url):
             + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv"\
-            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$"\
-            + "|.*about/bren/.*bren_vision\.php.*", parsed.path.lower()) \
+            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())\
             and not re.match(".*calendar\.ics\.uci\.edu.*"
                              + "|.*ngs\.ics\.uci\.edu.*"
                              + "|.*ganglia\.ics\.uci\.edu.*"
+                             + "|.*intranet\.ics\.uci\.edu.*"
                              + "|.*graphmod\.ics\.uci\.edu.*", parsed.netloc.lower()) \
-            and not re.match(".*p=2&c=igb-misc&h=arcus-3.*", parsed.query.lower()) \
             and not "/" in parsed.query \
             and not parsed.path.count(".php") > 1 \
             and not parsed.path.count(".html") > 1 \
@@ -161,3 +205,6 @@ def is_valid(url):
 
     except TypeError:
         print ("TypeError for ", parsed)
+
+
+
