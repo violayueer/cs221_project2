@@ -27,7 +27,7 @@ MAX_LINKS_TO_DOWNLOAD = 3000
 class Analytics:
     urlCount = 0
     maxOutPutUrlCount = 0
-    maxOutPutUrlList = list()
+    maxOutPutUrl = ''
     isDone = False
     invalidUrlCount = 0
     subDomainDic = {}
@@ -78,11 +78,8 @@ class CrawlerFrame(IApplication):
             outputFile = open('Analytics.txt', 'w')
             outputFile.write('Received invalid links from frontier:' + str(analytics.invalidUrlCount) + '\n')
 
-            outputFile.write('Pages with the most out links are:')
-            for url in analytics.maxOutPutUrlList:
-                outputFile.write(url + ',')
-
-            outputFile.write(', links count is:' + str(analytics.maxOutPutUrlCount) + '\n')
+            outputFile.write('Page with the most out links is:' + analytics.maxOutPutUrl)
+            outputFile.write(', out links count is:' + str(analytics.maxOutPutUrlCount) + '\n')
 
             for key in analytics.subDomainDic:
                 outputFile.write('Received subdomains:' + key)
@@ -130,25 +127,27 @@ def extract_next_links(rawDatas):
         return outputLinks
 
     for rawData in rawDatas:
+        tempCount = 0
+
         if rawData.is_redirected:
             rootUrl = rawData.final_url
         else:
             rootUrl = rawData.url
 
-        # print"------------------------------------------------"
-        # print rawData.headers
-        # print rawData.headers == {}
-        # print rawData.error_message
-        # print rawData.error_message != ''
-        # print"-------------------------------------------------"
+        print"------------------------------------------------"
+        print rawData.headers
+        print rawData.headers == {}
+        print rawData.error_message
+        print rawData.error_message != ''
+        print"-------------------------------------------------"
 
         #check if the url is valid or has any error message, if invalid, increase invalidUrlCount and continue
-        if rawData.headers == {} or rawData.error_message != '' or rawData.bad_url:
+        if rawData.headers == {} or rawData.error_message != '' or rawData.bad_url or not is_valid(rootUrl):
+            print "error-------------------------------------------"
             analytics.invalidUrlCount += 1
             continue
 
         # page = requests.get(rootUrl)
-        tempCount = 0
         page = rawData.content
 
         # Unicode
@@ -164,7 +163,11 @@ def extract_next_links(rawDatas):
             if link != rootUrl and is_valid(link):
 
                 hostname = urlparse(link).hostname
-                subDomain = hostname[4:len(hostname)]
+                if hostname[0:3] == 'www':
+                    subDomain = hostname[4:len(hostname)]
+                else:
+                    subDomain = hostname
+
                 analytics.subDomainDic[subDomain] = analytics.subDomainDic.get(subDomain, 0) + 1
 
                 outputLinks.append(link)
@@ -178,7 +181,7 @@ def extract_next_links(rawDatas):
 
         if (analytics.maxOutPutUrlCount < tempCount):
             analytics.maxOutPutUrlCount = tempCount
-            analytics.maxOutPutUrlList.append(link)
+            analytics.maxOutPutUrl = link
 
     return outputLinks
 
@@ -209,7 +212,8 @@ def is_valid(url):
             + "|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf" \
             + "|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|sha1" \
             + "|thmx|mso|arff|rtf|jar|csv"\
-            + "|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())\
+            + "|rm|smil|wmv|swf|wma|zip|rar|gz"\
+            + "|py|java|cpp|cc)$", parsed.path.lower())\
             and not re.match(".*calendar\.ics\.uci\.edu.*"
                              + "|.*ngs\.ics\.uci\.edu.*"
                              + "|.*ganglia\.ics\.uci\.edu.*"
@@ -219,7 +223,8 @@ def is_valid(url):
             and not parsed.path.count(".php") > 1 \
             and not parsed.path.count(".html") > 1 \
             and not ".php/" in parsed.path \
-            and not ".html/" in parsed.path
+            and not ".html/" in parsed.path \
+            and not re.match(".*files/zImage_paapi", parsed.path.lower())
 
 
     except TypeError:
