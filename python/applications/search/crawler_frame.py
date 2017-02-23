@@ -142,7 +142,7 @@ def extract_next_links(rawDatas):
         print"-------------------------------------------------"
 
         #check if the url is valid or has any error message, if invalid, increase invalidUrlCount and continue
-        if rawData.headers == {} or rawData.error_message != '' or rawData.bad_url or not is_valid(rootUrl):
+        if rawData.error_message != '' or rawData.bad_url or not is_valid(rootUrl):
             print "error-------------------------------------------"
             analytics.invalidUrlCount += 1
             continue
