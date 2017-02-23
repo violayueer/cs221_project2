@@ -181,7 +181,7 @@ def extract_next_links(rawDatas):
 
         if (analytics.maxOutPutUrlCount < tempCount):
             analytics.maxOutPutUrlCount = tempCount
-            analytics.maxOutPutUrl = link
+            analytics.maxOutPutUrl = rootUrl
 
     return outputLinks
 
